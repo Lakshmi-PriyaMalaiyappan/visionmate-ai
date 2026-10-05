@@ -1,80 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VisionMate AI</title>
 <style>
-  body{margin:0;font-family:Arial,sans-serif;background:#0d1117;color:#fff;text-align:center;padding:20px}
-  h1{margin:10px 0 4px}
-  p.sub{color:#9aa4b2;margin:0 0 24px}
-  #mic{width:220px;height:220px;border-radius:50%;border:6px solid #fff;background:#1f6feb;color:#fff;font-size:26px;font-weight:bold;cursor:pointer}
-  #mic.on{background:#d1242f}
-  #status{font-size:22px;margin:24px 0 8px;min-height:30px}
-  .box{background:#161b22;border-radius:12px;padding:14px;margin:12px auto;max-width:480px;font-size:20px;text-align:left}
-  .box b{color:#58a6ff}
-  small{color:#9aa4b2}
-</style>
-</head>
-<body>
-<h1>VisionMate AI</h1>
-<p class="sub">Voice assistant for visually impaired people</p>
+*{box-sizing:border-box}
+body{margin:auto;max-width:720px;font-family:Arial,sans-serif;background:#0b1220;color:#fff;padding:16px}
+header{text-align:center;padding:6px 0 14px}h1{margin:0;font-size:28px}.sub{color:#94a3b8;margin:4px 0}
+#mic{display:block;width:100%;padding:22px;font-size:22px;font-weight:bold;border:0;border-radius:16px;background:#3b82f6;color:#fff}
+#mic.on{background:#dc2626}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.card{background:#131c2e;border:2px solid #22304a;border-radius:16px;padding:16px 6px;color:#fff;font-size:16px;font-weight:bold}
+.card span{display:block;font-size:32px;margin-bottom:4px}
+.sos{background:#b91c1c;border-color:#ef4444;grid-column:1/3;font-size:20px}
+.panel{background:#131c2e;border-radius:16px;padding:14px;margin:12px 0}
+#out{font-size:20px;min-height:28px}
+video{width:100%;border-radius:12px;display:none;background:#000;margin-top:10px}
+input{padding:12px;border-radius:10px;border:1px solid #334;background:#0b1220;color:#fff;font-size:16px;width:100%;margin:4px 0}
+.s{padding:12px 16px;border:0;border-radius:10px;background:#3b82f6;color:#fff;font-size:16px;margin-top:4px}
+li{margin:6px 0}h3{margin:0 0 6px}small{color:#94a3b8}
+</style></head><body>
+<header><h1>👁 VisionMate AI</h1><p class="sub">Voice assistant for visually impaired people</p></header>
+<button id="mic">🎤 TAP &amp; SPEAK</button>
+<div class="panel"><div id="out" aria-live="polite">Tap the mic and speak</div><video id="vid" playsinline muted></video></div>
 
-<button id="mic" aria-label="Tap and speak">TAP &amp;<br>SPEAK</button>
-<div id="status" aria-live="polite">Tap the button and speak</div>
+<div class="grid">
+<button class="card" onclick="nav(prompt('Where do you want to go?'))"><span>🧭</span>Navigation</button>
+<button class="card" onclick="where()"><span>📍</span>Where am I</button>
+<button class="card" onclick="daily()"><span>📅</span>Daily Assistant</button>
+<button class="card" onclick="weather()"><span>🌤</span>Weather</button>
+<button class="card" onclick="objects()"><span>🔍</span>Object Detection</button>
+<button class="card" onclick="read()"><span>📄</span>Read Text (OCR)</button>
+<button class="card" onclick="currency()"><span>💵</span>Currency</button>
+<button class="card" onclick="listMeds()"><span>💊</span>My Medicines</button>
+<button class="card sos" onclick="sos()">🆘 EMERGENCY SOS</button>
+</div>
 
-<div class="box"><b>You:</b> <span id="you">-</span></div>
-<div class="box"><b>VisionMate:</b> <span id="bot">-</span></div>
-<small>Say: time, date, search (topic), help, bye<br>Use Chrome and allow microphone.</small>
+<div class="panel"><h3>💊 Medicine Reminder</h3>
+<input id="mn" placeholder="Medicine name"><input id="mt" type="time">
+<button class="s" onclick="addMed()">Add reminder</button><ul id="meds"></ul>
+<small>Keep this page open to hear reminders.</small></div>
 
+<div class="panel"><h3>🆘 Emergency Contact</h3>
+<input id="sn" type="tel" placeholder="Phone number with country code">
+<button class="s" onclick="saveSos()">Save number</button></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
-const mic = document.getElementById("mic");
-const statusEl = document.getElementById("status");
-const youEl = document.getElementById("you");
-const botEl = document.getElementById("bot");
+const $=id=>document.getElementById(id),out=$("out"),vid=$("vid");
+const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+function say(t){out.textContent=t;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="en-IN";u.rate=.95;speechSynthesis.speak(u)}
+const pos=()=>new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(p=>ok(p.coords),no,{enableHighAccuracy:true,timeout:10000}));
 
-function speak(text){
-  botEl.textContent = text;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-IN";
-  u.rate = 0.95;
-  speechSynthesis.speak(u);
-}
+/* Smart daily assistant */
+function daily(){const d=new Date(),h=d.getHours(),g=h<12?"Good morning":h<17?"Good afternoon":"Good evening";
+say(g+". Today is "+d.toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"})+". The time is "+d.toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}))}
+async function weather(){try{say("Checking weather");const c=await pos(),w=(await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m,precipitation`)).json()).current;
+say(`It is ${Math.round(w.temperature_2m)} degrees Celsius`+(w.precipitation>0?" and raining. Take an umbrella.":"."))}catch(e){say("Could not get weather. Please allow location.")}}
 
-function handle(cmd){
-  cmd = cmd.toLowerCase();
-  if (cmd.includes("time")) {
-    speak("The time is " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}));
-  } else if (cmd.includes("date") || cmd.includes("day")) {
-    speak("Today is " + new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}));
-  } else if (cmd.includes("search")) {
-    const q = cmd.replace("search","").trim();
-    if (q) { speak("Searching for " + q); window.open("https://www.google.com/search?q=" + encodeURIComponent(q), "_blank"); }
-    else speak("What should I search for?");
-  } else if (cmd.includes("help")) {
-    speak("You can ask the time, the date, or say search followed by a topic.");
-  } else if (cmd.includes("bye") || cmd.includes("stop")) {
-    speak("Goodbye. Take care.");
-  } else {
-    speak("I can not do that yet. Say help to know what I can do.");
-  }
-}
+/* Navigation */
+async function where(){try{say("Finding your location");const c=await pos(),r=await(await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${c.latitude}&lon=${c.longitude}`)).json();say("You are near "+r.display_name)}catch(e){say("Could not find your location.")}}
+function nav(q){if(!q){say("Say navigate to, and then the place name.");return}say("Opening walking directions to "+q);window.open("https://www.google.com/maps/dir/?api=1&travelmode=walking&destination="+encodeURIComponent(q),"_blank")}
 
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) {
-  statusEl.textContent = "Please open this page in Google Chrome.";
-  mic.disabled = true;
-} else {
-  const rec = new SR();
-  rec.lang = "en-IN";
-  rec.onstart = () => { mic.classList.add("on"); statusEl.textContent = "Listening..."; };
-  rec.onend = () => { mic.classList.remove("on"); statusEl.textContent = "Tap the button and speak"; };
-  rec.onerror = () => { statusEl.textContent = "Could not hear. Please try again."; };
-  rec.onresult = (e) => { const t = e.results[0][0].transcript; youEl.textContent = t; handle(t); };
-  mic.onclick = () => { speechSynthesis.cancel(); rec.start(); };
-  window.onload = () => speak("Hello, I am VisionMate. Tap the big button and speak.");
-}
-</script>
-</body>
-</html>
+/* Emergency SOS */
+function saveSos(){const n=$("sn").value.trim();if(!n){say("Please enter a number");return}store.set("sos",n);say("Emergency contact saved")}
+async function sos(){const n=store.get("sos","");if(!n){say("Please save an emergency number first.");return}
+let l="";try{const c=await pos();l=" My location: https://maps.google.com/?q="+c.latitude+","+c.longitude}catch(e){}
+say("Sending emergency alert. Please press send.");setTimeout(()=>location.href="sms:"+n+"?body="+encodeURIComponent("EMERGENCY! I need help."+l),1500)}
+
+/* Medicine reminder */
+function renderMeds(){const m=store.get("meds",[]);$("meds").innerHTML=m.map((x,i)=>`<li>${x.t} - ${x.n} <button onclick="delMed(${i})">✕</button></li>`).join("")||"<li>No reminders</li>"}
+function addMed(){const n=$("mn").value.trim(),t=$("mt").value;if(!n||!t){say("Enter medicine name and time");return}const m=store.get("meds",[]);m.push({n,t});store.set("meds",m);renderMeds();say("Reminder added for "+n+" at "+t)}
+function delMed(i){const m=store.get("meds",[]);m.splice(i,1);store.set("meds",m);renderMeds()}
+function listMeds(){const m=store.get("meds",[]);say(m.length?"Your medicines: "+m.map(x=>x.n+" at "+x.t).join(", "):"No medicine reminders set.")}
+let last="";setInterval(()=>{const d=new Date(),h=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");if(h===last)return;last=h;store.get("meds",[]).filter(x=>x.t===h).forEach(x=>say("Medicine time. Please take "+x.n))},5000);
+
+/* Camera features */
+let stream,model;
+async function cam(){if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});vid.srcObject=stream;vid.style.display="block";await vid.play();await new Promise(r=>setTimeout(r,1000))}}
+function snap(){const c=document.createElement("canvas");c.width=vid.videoWidth;c.height=vid.videoHeight;c.getContext("2d").drawImage(vid,0,0);return c}
+async function ocr(){return(await Tesseract.recognize(snap(),"eng")).data.text.trim()}
+async function objects(){try{say("Starting camera");await cam();if(!model){say("Loading model, please wait");model=await cocoSsd.load()}
+const n=[...new Set((await model.detect(vid)).filter(x=>x.score>.5).map(x=>x.class))];say(n.length?"I can see "+n.join(", "):"I could not detect any object.")}catch(e){say("Camera or model problem.")}}
+async function read(){try{await cam();say("Reading. Hold steady.");const t=await ocr();say(t?"The text says: "+t.slice(0,400):"I could not read any text.")}catch(e){say("Camera or reading problem.")}}
+async function currency(){try{await cam();say("Checking the note");const t=await ocr(),d=[2000,500,200,100,50,20,10].find(v=>new RegExp("\\b"+v+"\\b").test(t));
+say(d?`This looks like a ${d} rupee note.`:"I could not identify the note. Hold it flat and try again.")}catch(e){say("Camera problem.")}}
+
+/* Voice commands */
+function handle(c){c=c.toLowerCase();let m;
+if(/sos|emergency|help me/.test(c))sos();
+else if(m=c.match(/(?:navigate to|directions to|take me to)\s+(.+)/))nav(m[1]);
+else if(/navigate|direction/.test(c))nav("");
+else if(/where am i|location/.test(c))where();
+else if(/weather/.test(c))weather();
+else if(/time|date|day|today/.test(c))daily();
+else if(/medicine|tablet/.test(c))listMeds();
+else if(/object|see|front/.test(c))objects();
+else if(/read|text/.test(c))read();
+else if(/currency|note|money|rupee/.test(c))currency();
+else say("You can say: navigate to a place, where am I, weather, time, medicine, what is in front, read text, currency, or emergency.")}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){out.textContent="Please open in Google Chrome.";$("mic").disabled=true}
+else{const r=new SR();r.lang="en-IN";
+r.onstart=()=>{$("mic").classList.add("on");out.textContent="Listening..."};
+r.onend=()=>$("mic").classList.remove("on");
+r.onerror=()=>say("I could not hear. Please try again.");
+r.onresult=e=>{const t=e.results[0][0].transcript;out.textContent="You: "+t;handle(t)};
+$("mic").onclick=()=>{speechSynthesis.cancel();r.start()}}
+store.get("sos","")&&($("sn").value=store.get("sos",""));renderMeds();
+</script></body></html>
