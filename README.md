@@ -21,4 +21,5 @@ python main.py
 Say: "time", "date", "search <topic>", "help", "exit".
 
 ## Team
-- Add team member names here
+- Lakshmipriya Malaiyappan
+- Friend name
