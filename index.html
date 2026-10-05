@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisionMate AI</title>
+<style>
+  body{margin:0;font-family:Arial,sans-serif;background:#0d1117;color:#fff;text-align:center;padding:20px}
+  h1{margin:10px 0 4px}
+  p.sub{color:#9aa4b2;margin:0 0 24px}
+  #mic{width:220px;height:220px;border-radius:50%;border:6px solid #fff;background:#1f6feb;color:#fff;font-size:26px;font-weight:bold;cursor:pointer}
+  #mic.on{background:#d1242f}
+  #status{font-size:22px;margin:24px 0 8px;min-height:30px}
+  .box{background:#161b22;border-radius:12px;padding:14px;margin:12px auto;max-width:480px;font-size:20px;text-align:left}
+  .box b{color:#58a6ff}
+  small{color:#9aa4b2}
+</style>
+</head>
+<body>
+<h1>VisionMate AI</h1>
+<p class="sub">Voice assistant for visually impaired people</p>
+
+<button id="mic" aria-label="Tap and speak">TAP &amp;<br>SPEAK</button>
+<div id="status" aria-live="polite">Tap the button and speak</div>
+
+<div class="box"><b>You:</b> <span id="you">-</span></div>
+<div class="box"><b>VisionMate:</b> <span id="bot">-</span></div>
+<small>Say: time, date, search (topic), help, bye<br>Use Chrome and allow microphone.</small>
+
+<script>
+const mic = document.getElementById("mic");
+const statusEl = document.getElementById("status");
+const youEl = document.getElementById("you");
+const botEl = document.getElementById("bot");
+
+function speak(text){
+  botEl.textContent = text;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-IN";
+  u.rate = 0.95;
+  speechSynthesis.speak(u);
+}
+
+function handle(cmd){
+  cmd = cmd.toLowerCase();
+  if (cmd.includes("time")) {
+    speak("The time is " + new Date().toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}));
+  } else if (cmd.includes("date") || cmd.includes("day")) {
+    speak("Today is " + new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}));
+  } else if (cmd.includes("search")) {
+    const q = cmd.replace("search","").trim();
+    if (q) { speak("Searching for " + q); window.open("https://www.google.com/search?q=" + encodeURIComponent(q), "_blank"); }
+    else speak("What should I search for?");
+  } else if (cmd.includes("help")) {
+    speak("You can ask the time, the date, or say search followed by a topic.");
+  } else if (cmd.includes("bye") || cmd.includes("stop")) {
+    speak("Goodbye. Take care.");
+  } else {
+    speak("I can not do that yet. Say help to know what I can do.");
+  }
+}
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) {
+  statusEl.textContent = "Please open this page in Google Chrome.";
+  mic.disabled = true;
+} else {
+  const rec = new SR();
+  rec.lang = "en-IN";
+  rec.onstart = () => { mic.classList.add("on"); statusEl.textContent = "Listening..."; };
+  rec.onend = () => { mic.classList.remove("on"); statusEl.textContent = "Tap the button and speak"; };
+  rec.onerror = () => { statusEl.textContent = "Could not hear. Please try again."; };
+  rec.onresult = (e) => { const t = e.results[0][0].transcript; youEl.textContent = t; handle(t); };
+  mic.onclick = () => { speechSynthesis.cancel(); rec.start(); };
+  window.onload = () => speak("Hello, I am VisionMate. Tap the big button and speak.");
+}
+</script>
+</body>
+</html>
