@@ -14,7 +14,7 @@ Python, SpeechRecognition, pyttsx3
 ## Installation
 ```bash
 pip install -r requirements.txt
-python src/main.py
+python main.py
 ```
 
 ## Usage
